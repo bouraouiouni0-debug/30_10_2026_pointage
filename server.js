@@ -3,12 +3,18 @@
 const express = require('express');
 const app = express();
 
-const KEY = process.env.KEY || '1234';
+// La cle doit etre definie dans Render > Environment (variable KEY)
+const KEY = process.env.KEY;
+if (!KEY) {
+  console.error('ERREUR : definir la variable d\'environnement KEY dans Render.');
+  process.exit(1);
+}
 
 let queue = [];      // requetes navigateur en attente {id, method, path, body}
 let pollers = [];    // appels longs de l'ESP32 en attente
 let waiting = {};    // id -> {resolve, timer}
 let nextId = 1;
+let lastPoll = 0;    // dernier appel de l'ESP32 (pour le log)
 const cache = new Map();   // images deja recuperees (path -> reponse)
 
 function authEsp(req, res, next) {
@@ -42,6 +48,9 @@ function ask(method, path, body) {
 /* ---------- Cote ESP32 ---------- */
 // L'ESP32 attend ici (appel long) qu'une page soit demandee
 app.get('/esp/poll', authEsp, (req, res) => {
+  if (Date.now() - lastPoll > 60000) console.log('ESP32 connecte');
+  lastPoll = Date.now();
+
   const p = { res };
   p.timer = setTimeout(() => {
     pollers = pollers.filter(x => x !== p);
@@ -76,7 +85,7 @@ app.post('/esp/result', authEsp, express.raw({ type: '*/*', limit: '60mb' }), (r
 app.use(express.raw({ type: '*/*', limit: '1mb' }));
 
 app.use(async (req, res) => {
-  // Mot de passe : /?k=1234 la premiere fois, ensuite cookie
+  // Mot de passe : /?k=CLE la premiere fois, ensuite cookie
   if (req.query.k === KEY) {
     res.set('Set-Cookie', `k=${KEY}; Path=/; Max-Age=2592000; HttpOnly; Secure; SameSite=Lax`);
     const u = new URL(req.originalUrl, 'http://x');
