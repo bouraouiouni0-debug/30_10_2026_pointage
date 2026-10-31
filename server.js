@@ -138,6 +138,24 @@ app.post('/esp/result', authEsp, express.raw({ type: '*/*', limit: '60mb' }), (r
   res.send('ok');
 });
 
+// ===== COMPTEUR DE 1 A 10 =====
+let compteur = 0;
+let file = [];
+
+setInterval(() => {
+  compteur++;
+  if (compteur > 10) compteur = 1;
+  file.push(compteur);
+  if (file.length > 20) file.shift();
+}, 1000);
+
+// L'ESP32 lit ici la prochaine valeur (vide s'il n'y en a pas)
+app.get('/compteur', authEsp, (req, res) => {
+  lastSeen = Date.now();
+  res.set('Cache-Control', 'no-store').type('text/plain')
+     .send(file.length ? String(file.shift()) : '');
+});
+
 // Log quand l'ESP32 disparait
 setInterval(() => {
   if (wasOnline && !isOnline()) { wasOnline = false; console.log('ESP32 hors ligne'); }
